@@ -19,8 +19,9 @@
 
 #include <inttypes.h>
 
-#define MBED_DOMAIN "XXX"
-#define MBED_ENDPOINT_NAME "XXX"
+#define MBED_DOMAIN "bridadan"
+#define MBED_ENDPOINT_NAME "conference-room-3"
+#define MBED_ENDPOINT_TYPE "thread-conference-room-indicator"
 
 const unsigned char PSK[] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x30,0x31,0x32,0x33,0x34,0x35,0x36};
 const unsigned char PSK_IDENTITY[] = {0x0F,0x0F};

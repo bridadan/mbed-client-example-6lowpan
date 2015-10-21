@@ -17,8 +17,24 @@
 #define __MBEDCLIENT_H__
 
 #include "mbed-client/m2minterfaceobserver.h"
-#include "mbed/DigitalOut.h"
+#include "mbed-drivers/DigitalOut.h"
 #include "mbed-mesh-api/mesh_interface_types.h"
+
+#include "ChainableLED.h"
+
+struct FadeLedData {
+  int startR;
+  int startG;
+  int startB;
+  int endR;
+  int endG;
+  int endB;
+  int deltaR;
+  int deltaG;
+  int deltaB;
+  int currentStep;
+  int totalSteps;
+};
 
 class M2MDevice;
 class M2MSecurity;
@@ -90,8 +106,13 @@ public:
     //Handler for mesh network status events
     void mesh_network_handler(mesh_connection_status_t status);
 
+    void fade_led(int start, int end, int steps, int interval);
+
+    void fade_led_run();
+
 private:
 
+    ChainableLED        _rgb_led;
     mbed::DigitalOut    _led;
     M2MInterface        *_interface;
     M2MSecurity         *_register_security;
@@ -103,5 +124,10 @@ private:
     bool                _unregistered;
     bool                _registration_updated;
     int                 _value;
+    FadeLedData         _fade_led_data;
+    mbed::util::FunctionPointer0<void> _fp_fade_led;
+    mbed::util::Event   _e_fade_led;
+    int                 _cur_rgb_color;
+    minar::callback_handle_t  _fade_led_handle;
 };
 #endif //__MBEDCLIENT_H__
