@@ -40,6 +40,7 @@ const String &TYPE = "type";
 const String &MODEL_NUMBER = "2015";
 const String &SERIAL_NUMBER = "12345";
 const uint8_t STATIC_VALUE[] = "Static value";
+#define MBED_ENDPOINT_TYPE "thread-conference-room-indicator"
 
 MbedClient::MbedClient()
     : _led(LED1, 1), _rgb_led(D0, D1, 1)
@@ -100,7 +101,7 @@ bool MbedClient::create_interface()
     uint16_t port = rand() % 65535 + 12345;
     _interface = M2MInterfaceFactory::create_interface(*this,
                  MBED_ENDPOINT_NAME,
-                 "test",
+                 MBED_ENDPOINT_TYPE,
                  3600,
                  port,
                  MBED_DOMAIN,
