@@ -109,7 +109,9 @@ private:
     void wait();
     void idle();
     ChainableLED        _rgb_led;
-    mbed::DigitalOut    _led;
+    mbed::DigitalOut    _led_red;
+    mbed::DigitalOut    _led_green;
+    mbed::DigitalOut    _led_blue;
     M2MInterface        *_interface;
     M2MSecurity         *_register_security;
     M2MDevice           *_device;

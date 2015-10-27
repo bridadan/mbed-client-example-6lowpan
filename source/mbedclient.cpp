@@ -43,7 +43,7 @@ const uint8_t STATIC_VALUE[] = "Static value";
 #define MBED_ENDPOINT_TYPE "thread-conference-room-indicator"
 
 MbedClient::MbedClient()
-    : _led(LED1, 1), _rgb_led(D0, D1, 1)
+    : _led_red(LED_RED, 1), _led_green(LED_GREEN, 1), _led_blue(LED_BLUE, 1), _rgb_led(D0, D1, 1)
 {
     _interface = NULL;
     _register_security = NULL;
@@ -143,7 +143,7 @@ M2MDevice *MbedClient::create_device_object()
 
 void MbedClient::execute_function(void */*argument*/)
 {
-    _led == 0 ? _led = 1 : _led = 0;
+    //_led == 0 ? _led = 1 : _led = 0;
 }
 
 M2MObject *MbedClient::create_generic_object()
@@ -276,12 +276,24 @@ void MbedClient::value_updated(M2MBase *base, M2MBase::BaseType type)
 
     if (strcmp((const char *) tmp_ptr, "free") == 0) {
       new_rgb_color = 0x00FF00;
+      _led_red = 1;
+      _led_green = 0;
+      _led_blue = 1;
     } else if (strcmp((const char *) tmp_ptr, "taken") == 0) {
       new_rgb_color = 0xFF0000;
+      _led_red = 0;
+      _led_green = 1;
+      _led_blue = 1;
     } else if (strcmp((const char *) tmp_ptr, "connected") == 0) {
       new_rgb_color = 0x0000FF;
+      _led_red = 1;
+      _led_green = 1;
+      _led_blue = 0;
     } else {
       new_rgb_color = 0xFFFF00;
+      _led_red = 0;
+      _led_green = 0;
+      _led_blue = 1;
     }
 
     fade_led(_cur_rgb_color, new_rgb_color, 10, 50);
