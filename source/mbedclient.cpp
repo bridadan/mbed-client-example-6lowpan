@@ -22,6 +22,7 @@
 #include "core-util/FunctionPointer.h"
 #include "mbed-drivers/test_env.h"
 #include "security.h"
+
 #define HAVE_DEBUG 1
 #include "ns_trace.h"
 
@@ -40,9 +41,8 @@ const String &MODEL_NUMBER = "2015";
 const String &SERIAL_NUMBER = "12345";
 const uint8_t STATIC_VALUE[] = "Static value";
 
-
 MbedClient::MbedClient()
-    : _led(LED3)
+    : _led(LED1, 1), _rgb_led(D0, D1, 1)
 {
     _interface = NULL;
     _register_security = NULL;
@@ -54,6 +54,11 @@ MbedClient::MbedClient()
     _updating = false;
     _value = 0;
 
+    _rgb_led.setColorRGB(0, 0, 0, 0);
+    _cur_rgb_color = 0;
+
+    _fp_fade_led.attach(this, &MbedClient::fade_led_run);
+    _e_fade_led = _fp_fade_led.bind();
     // Create LWM2M device object specifying device resources
     // as per OMA LWM2M specification.
     M2MDevice *device_object = create_device_object();
@@ -142,27 +147,15 @@ void MbedClient::execute_function(void */*argument*/)
 
 M2MObject *MbedClient::create_generic_object()
 {
-    _object = M2MInterfaceFactory::create_object("Test");
-    if (_object) {
-        M2MObjectInstance *inst = _object->create_object_instance();
-        if (inst) {
-            M2MResource *res = inst->create_dynamic_resource("D",
-                               "ResourceTest",
-                               M2MResourceInstance::INTEGER,
-                               true);
-            char buffer[20];
-            int size = sprintf(buffer, "%d", _value);
-            res->set_operation(M2MBase::GET_PUT_ALLOWED);
-            res->set_value((const uint8_t *)buffer,
-                           (const uint32_t)size);
-            res->set_execute_function(execute_callback(this, &MbedClient::execute_function));
-            _value++;
-
-            inst->create_static_resource("S",
-                                         "ResourceTest",
-                                         M2MResourceInstance::STRING,
-                                         STATIC_VALUE,
-                                         sizeof(STATIC_VALUE) - 1);
+    _object = M2MInterfaceFactory::create_object("Room");
+    if(_object) {
+        M2MObjectInstance* inst = _object->create_object_instance();
+        if(inst) {
+            M2MResource* res2 = inst->create_dynamic_resource("S", "Status", M2MResourceInstance::STRING, true);
+            char buffer2[20];
+            int size2 = sprintf(buffer2,"%d",_value);
+            res2->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
+            res2->set_value((const uint8_t*)buffer2, (const uint32_t) size2);
         }
     }
     return _object;
@@ -249,10 +242,6 @@ void MbedClient::update_registration() {
     }
 }
 
-void MbedClient::value_updated(M2MBase */*base*/, M2MBase::BaseType /*type*/)
-{
-}
-
 void MbedClient::error(M2MInterface::Error error)
 {
     tr_error("error() %d", error);
@@ -265,6 +254,37 @@ void MbedClient::error(M2MInterface::Error error)
         default:
             break;
     }
+}
+
+void MbedClient::value_updated(M2MBase *base, M2MBase::BaseType type)
+{
+    // toggle the lights in here
+    uint16_t instance_id = base->instance_id();
+
+    M2MObjectInstance *object_instance = _object->object_instance(instance_id);
+    M2MResource *light_resource = object_instance->resource("S");
+
+    uint8_t tmp_buf[20];
+    uint8_t *tmp_ptr = tmp_buf;
+    uint32_t tmp_length;
+
+    light_resource->get_value(tmp_ptr, tmp_length);
+    printf("New status: %s\n", tmp_ptr);
+
+    int new_rgb_color;
+
+    if (strcmp((const char *) tmp_ptr, "free") == 0) {
+      new_rgb_color = 0x00FF00;
+    } else if (strcmp((const char *) tmp_ptr, "taken") == 0) {
+      new_rgb_color = 0xFF0000;
+    } else if (strcmp((const char *) tmp_ptr, "connected") == 0) {
+      new_rgb_color = 0x0000FF;
+    } else {
+      new_rgb_color = 0xFFFF00;
+    }
+
+    fade_led(_cur_rgb_color, new_rgb_color, 10, 50);
+    _cur_rgb_color = new_rgb_color;
 }
 
 void MbedClient::wait()
@@ -317,5 +337,38 @@ void MbedClient::mesh_network_handler(mesh_connection_status_t status)
     tr_debug("mesh_network_handler() %d", status);
     if (status == MESH_CONNECTED) {
         wait();
+    }
+}
+
+void MbedClient::fade_led(int start, int end, int steps, int interval) {
+    _fade_led_data.startR = (start >> 16) & 0xFF;
+    _fade_led_data.startG = (start >> 8) & 0xFF;
+    _fade_led_data.startB = start & 0xFF;
+
+    _fade_led_data.endR = (end >> 16) & 0xFF;
+    _fade_led_data.endG = (end >> 8) & 0xFF;
+    _fade_led_data.endB = end & 0xFF;
+
+    _fade_led_data.deltaR = (_fade_led_data.endR - _fade_led_data.startR) / steps;
+    _fade_led_data.deltaG = (_fade_led_data.endG - _fade_led_data.startG) / steps;
+    _fade_led_data.deltaB = (_fade_led_data.endB - _fade_led_data.startB) / steps;
+
+    _fade_led_data.currentStep = 0;
+    _fade_led_data.totalSteps = steps;
+
+    _fade_led_handle = minar::Scheduler::postCallback(_e_fade_led).period(minar::milliseconds(interval)).getHandle();
+}
+
+void MbedClient::fade_led_run() {
+    int curR = _fade_led_data.startR + (_fade_led_data.deltaR * _fade_led_data.currentStep);
+    int curG = _fade_led_data.startG + (_fade_led_data.deltaG * _fade_led_data.currentStep);
+    int curB = _fade_led_data.startB + (_fade_led_data.deltaB * _fade_led_data.currentStep);
+
+    _rgb_led.setColorRGB(0, curR, curG, curB);
+
+    if (_fade_led_data.currentStep < _fade_led_data.totalSteps) {
+        _fade_led_data.currentStep++;
+    } else {
+        minar::Scheduler::cancelCallback(_fade_led_handle);
     }
 }
